@@ -1,0 +1,21 @@
+{
+    "name": "sfinktah/gtin-validator",
+    "description": "A utility class for validating, calculating, and converting GTIN-14 barcodes into UPC-13.",
+    "type": "library",
+    "require": {
+        "php": ">=8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Sfinktah\\String\\": "src/"
+        }
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Christopher Anderson",
+            "email": "sfinktah@github.spamtrak.org"
+        }
+    ],
+    "minimum-stability": "stable"
+}
