@@ -1,35 +1,20 @@
 # GTIN Validator
 
-A utility library for validating, calculating, and converting GTIN-14 barcodes including ITF-14 into UPC-13.
+A utility library for validating, calculating, and converting GTIN barcodes, including support for ITF-14, EAN-13, and UPC-12.
 
-### How It Works:
+## How It Works
 1. **Validation**:
-    - The function ensures the input is a 14-digit string with a valid checksum.
+   - Validates GTIN formats like ITF-14, EAN-13, and UPC-12 using standard check digit calculations and regular expressions.
 
-2. **Drop Packaging Indicator**:
-    - The first digit of the ITF-14 is dropped, leaving 13 potential digits.
+2. **Conversion**:
+   - Converts formats like ITF-14 to EAN-13 by dropping the packaging identifier and recalculating the checksum.
+   - Converts UPC-12 into its respective GTIN-13 format by adding a leading zero.
 
-3. **Check Digit Calculation**:
-    - The checksum for UPC-13/EAN-13 is calculated using the formula:
-        - Multiply odd-positioned digits by 1.
-        - Multiply even-positioned digits by 3.
-        - Sum both products.
-        - Find the smallest number that, when added to the sum, results in a multiple of 10.
+3. **Fixing Invalid Barcodes**:
+   - Identifies the type of a barcode (UPC-12, EAN-13, or ITF-14) and fixes it by padding or reformatting it based on its length and checksum.
 
-4. **Output**:
-    - Concatenate the 12 initial digits with the recalculated checksum for the UPC-13.
-
-### Example Input & Output
-1. **Input**: `10012345678905` (ITF-14)
-    - Drop the leading `1`: `0012345678905`
-    - Recalculate checksum: `001234567890 + checksum`
-    - **Output**: `0012345678907`
-
-2. **Input**: `20098765432109` (ITF-14)
-    - Drop the leading `2`: `0098765432109`
-    - Recalculate checksum: `009876543210 + checksum`
-    - **Output**: `0098765432107`
-
+4. **Duplicate Detection**:
+   - Can be leveraged to detect duplicate barcodes in datasets by combining with custom logic.
 
 ## Installation
 
@@ -39,29 +24,104 @@ Install the package via Composer:
 composer require sfinktah/gtin-validator
 ```
 
-## Usage
+## Example Usage
 
-Here is an example of how to use the `Sfinktah\String\GTIN` class:
+Here are examples of how to use the `Sfinktah\String\GTIN` class in various scenarios.
 
+---
+
+### 1. Validate an ITF-14 Barcode
+Use the `isValidITF14` method to verify if an ITF-14 barcode is valid:
 ```php
 use Sfinktah\String\GTIN;
 
-// Example ITF-14 barcode
 $itf14 = "10855100009555";
 
 if (GTIN::isValidITF14($itf14)) {
     echo "The ITF-14 barcode is valid.\n";
-
-    $upc13 = GTIN::itf14ToUpc13($itf14);
-    if ($upc13) {
-        echo "Converted UPC-13: $upc13\n";
-    } else {
-        echo "Failed to convert to UPC-13.\n";
-    }
 } else {
     echo "The ITF-14 barcode is invalid.\n";
 }
 ```
+
+---
+
+### 2. Convert ITF-14 to EAN-13
+Remove the first digit of an ITF-14 barcode and calculate its new checksum:
+```php
+$itf14 = "10855100009555";
+$ean13 = GTIN::itf14ToEan13($itf14);
+
+if ($ean13) {
+    echo "Converted EAN-13: $ean13\n";
+} else {
+    echo "Failed to convert ITF-14 to EAN-13.\n";
+}
+```
+
+---
+
+### 3. Validate an UPC-12 Barcode
+Use the `isValidUPC12` method to check if a UPC-12 is valid:
+```php
+$upc12 = "012345678905";
+
+if (GTIN::isValidUPC12($upc12)) {
+    echo "The UPC-12 barcode is valid.\n";
+} else {
+    echo "The UPC-12 barcode is invalid.\n";
+}
+```
+
+---
+
+### 4. Identify Unknown Barcodes
+Pass a barcode of unknown type for validation and formatting into its correct GTIN format:
+```php
+$unknownBarcode = "12345678905"; // Example: Too short for ITF-14
+$gtinInfo = GTIN::identifyBarcodeType($unknownBarcode);
+
+if ($gtinInfo) {
+    echo "Barcode Type: {$gtinInfo['type']}\n";
+    echo "Full Formatted Barcode: {$gtinInfo['full_form']}\n";
+} else {
+    echo "The barcode could not be validated as UPC-12, EAN-13, or ITF-14.\n";
+}
+```
+
+---
+
+### 5. Integrate with a Dataset (e.g., Laravel Model)
+Use a custom method to process and fix database records (as shown in our `processRecord` example):
+```php
+use App\Models\TSummitCsv;
+use Sfinktah\String\GTIN;
+
+function processRecord(TSummitCsv $record)
+{
+    $originalGtin = $record->gtin;
+    
+    if (!empty($originalGtin)) {
+        // Identify the GTIN type and validate
+        $gtinInfo = GTIN::identifyBarcodeType($originalGtin);
+
+        if ($gtinInfo) {
+            $fixedGtin = $gtinInfo['full_form'];
+
+            if ($fixedGtin !== $originalGtin) {
+                // Update the GTIN if fixed
+                $record->gtin = $fixedGtin;
+                $record->save();
+                echo "Fixed GTIN: $originalGtin -> $fixedGtin\n";
+            }
+        } else {
+            echo "Invalid GTIN: $originalGtin\n";
+        }
+    }
+}
+```
+
+---
 
 ## License
 

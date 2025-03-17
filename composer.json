@@ -1,6 +1,6 @@
 {
     "name": "sfinktah/gtin-validator",
-    "description": "A utility class for validating, calculating, and converting GTIN-14 barcodes into UPC-13.",
+    "description": "A utility class for validating, calculating, converting, and identifying barcodes including GTIN, UPC-12, EAN-13, and ITF-14 formats.",
     "type": "library",
     "require": {
         "php": ">=8.0"
