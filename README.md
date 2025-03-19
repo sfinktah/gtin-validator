@@ -89,36 +89,85 @@ if ($gtinInfo) {
 }
 ```
 
+### 5. Homogonize GTINs for SQL storage
+```php
+ /**
+  * Validate and convert the given GTIN to its proper format, leading 0's removed
+  * (for easy SQL comparison between UPC-12 and EAN-13). Also translate ITF-14 bulk items
+  * to EAN-13.
+  *
+  * @param string $originalGtin The original GTIN to validate and convert.
+  * @return string|null Returns the validated and formatted GTIN, or null if invalid.
+  */
+ private function validateGtin(string $originalGtin)
+ {
+     if (!empty($originalGtin)) {
+         // Identify and validate the GTIN
+         $gtinInfo = GTIN::identifyBarcodeType($originalGtin);
+         if (!$gtinInfo) return null;
+         if ($gtinInfo['type'] === 'ITF-14') {
+             $trimmedGtin = GTIN::itf14ToEan13($gtinInfo['full_form']);
+         } else {
+             $trimmedGtin = $gtinInfo['full_form'];
+         }
+         return ltrim($trimmedGtin, 0);
+     }
+     return null;
+ }
+
+```
+
 ---
 
-### 5. Integrate with a Dataset (e.g., Laravel Model)
+### 6. Integrate with a Dataset (e.g., Laravel Model)
 Use a custom method to process and fix database records (as shown in our `processRecord` example):
 ```php
-use App\Models\TSummitCsv;
+use App\Models\Item;
 use Sfinktah\String\GTIN;
 
-function processRecord(TSummitCsv $record)
-{
-    $originalGtin = $record->gtin;
-    
-    if (!empty($originalGtin)) {
-        // Identify the GTIN type and validate
-        $gtinInfo = GTIN::identifyBarcodeType($originalGtin);
+ /**
+  * Validate and save an EAN-13 barcode with leading 0's trimmmed, or
+  * null if the GTIN is invalid
+  *
+  * @param Item $record
+  */
+ private function processRecord(Item $record)
+ {
+     $originalGtin = $record->gtin;
 
-        if ($gtinInfo) {
-            $fixedGtin = $gtinInfo['full_form'];
+     if (!empty($originalGtin)) {
+         // Identify and validate the GTIN
+         $gtinInfo = GTIN::identifyBarcodeType(ltrim($originalGtin, 0));
 
-            if ($fixedGtin !== $originalGtin) {
-                // Update the GTIN if fixed
-                $record->gtin = $fixedGtin;
-                $record->save();
-                echo "Fixed GTIN: $originalGtin -> $fixedGtin\n";
-            }
-        } else {
-            echo "Invalid GTIN: $originalGtin\n";
-        }
-    }
-}
+         if ($gtinInfo) {
+             if ($gtinInfo['type'] === 'ITF-14') {
+                 $fixedGtin = GTIN::itf14ToEan13($gtinInfo['full_form']);
+             } else if ($gtinInfo['type'] === 'UPC-12') {
+                 // As we trim the result, this step doesn't really do anything useful,
+                 // though if you want uniform EAN-13 then leave it in.
+                 $fixedGtin = GTIN::upc12ToEan13($gtinInfo['full_form']);
+             } else {
+                 $fixedGtin = $gtinInfo['full_form'];
+             }
+             if (!GTIN::isValidEAN13($fixedGtin)) {
+                 $this->info('Converted to invalid EAN13: ' . $fixedGtin);
+             }
+             
+             // Trim leading 0s, this doesn't alter the validity of checksums.
+             $trimmedGtin = ltrim($fixedGtin, 0);
+             if ($trimmedGtin !== $originalGtin) {
+                 // Update the GTIN if it was corrected
+                 $record->gtin = $trimmedGtin;
+                 $record->save();
+                 $this->info(sprintf("Corrected %s GTIN for record ID %-7s: %-14s -> %-14s", $gtinInfo['type'], $record->id, $originalGtin, $trimmedGtin));
+             }
+         } else {
+             $this->warn("Invalid GTIN for record ID {$record->id}: $originalGtin");
+             $record->gtin = null;
+             $record->save();
+         }
+     }
+ }
 ```
 
 ---

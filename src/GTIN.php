@@ -5,8 +5,9 @@ namespace Sfinktah\String;
 class GTIN
 {
     // Constants for validating barcode lengths
-    public const ITF14_REGEX = '/^\d{14}$/';
     public const UPC12_REGEX = '/^\d{12}$/'; // NEW: Regex for UPC-12 validation
+    public const EAN13_REGEX = '/^\d{13}$/';
+    public const ITF14_REGEX = '/^\d{14}$/';
     public const UPC12_PREFIX_REGEX = '/^\d{11}$/';
     public const EAN13_PREFIX_REGEX = '/^\d{12}$/';
     public const ITF14_PREFIX_REGEX = '/^\d{13}$/';
@@ -53,7 +54,7 @@ class GTIN
     public static function isValidEAN13(string $ean13): bool
     {
         // Ensure the barcode has exactly 13 digits using regex
-        if (!self::validateBarcode($ean13, self::ITF14_REGEX)) {
+        if (!self::validateBarcode($ean13, self::EAN13_REGEX)) {
             return false;
         }
 
@@ -139,19 +140,19 @@ class GTIN
     }
 
     /**
-     * Converts a UPC-12 barcode to a GTIN-13 barcode by prefixing it with a leading zero.
+     * Converts a UPC-12 barcode to a EAN-13 barcode by prefixing it with a leading zero.
      *
      * @param string $upc12 The 12-digit UPC-12 barcode.
-     * @return string|null The resulting 13-digit GTIN-13 barcode or null if invalid.
+     * @return string|null The resulting 13-digit EAN-13 barcode or null if invalid.
      */
-    public static function upc12ToGtin13(string $upc12): ?string
+    public static function upc12ToEan13(string $upc12): ?string
     {
         if (!self::isValidUPC12($upc12)) {
             return null;
         }
 
         // Add leading zero and calculate checksum
-        $gtin13Prefix = '0' . substr($upc12, 0, 12);
+        $gtin13Prefix = '0' . substr($upc12, 0, 11);
         $checkDigit = self::calculateEAN13CheckDigit($gtin13Prefix);
 
         return substr($gtin13Prefix, 0, 12) . $checkDigit;
@@ -197,7 +198,7 @@ class GTIN
      * @param string $barcode The input barcode (of unknown length and type).
      * @return array|null An array with 'type' (UPC-12, EAN-13, ITF-14) and 'full_form' or null if invalid.
      */
-    public static function identifyBarcodeType(string $barcode): ?array
+    public static function identifyBarcodeType(string $barcode, bool $noUpc12 = false, bool $noEan13 = false, bool $noItf14 = false): ?array
     {
         // Normalize barcode (remove unnecessary spaces, etc.)
         $barcode = trim($barcode);
@@ -208,7 +209,7 @@ class GTIN
         $paddedTo14 = str_pad($barcode, 14, '0', STR_PAD_LEFT); // Pad to 14 digits
 
         // Try validating UPC-12
-        if (self::isValidUPC12($paddedTo12)) {
+        if (!$noUpc12 && self::isValidUPC12($paddedTo12)) {
             return [
                 'type' => 'UPC-12',
                 'full_form' => $paddedTo12,
@@ -216,7 +217,7 @@ class GTIN
         }
 
         // Try validating EAN-13
-        if (self::isValidEAN13($paddedTo13)) {
+        if (!$noEan13 && self::isValidEAN13($paddedTo13)) {
             return [
                 'type' => 'EAN-13',
                 'full_form' => $paddedTo13,
@@ -224,7 +225,7 @@ class GTIN
         }
 
         // Try validating ITF-14
-        if (self::isValidITF14($paddedTo14)) {
+        if (!$noItf14 && self::isValidITF14($paddedTo14)) {
             return [
                 'type' => 'ITF-14',
                 'full_form' => $paddedTo14,
@@ -271,10 +272,10 @@ class GTIN
         if (GTIN::isValidUPC12($upc12)) {
             echo "The UPC-12 barcode is valid.\n";
 
-            // Convert to GTIN-13
-            $gtin13 = GTIN::upc12ToGtin13($upc12);
+            // Convert to EAN-13
+            $gtin13 = GTIN::upc12ToEan13($upc12);
             if ($gtin13) {
-                echo "The corresponding GTIN-13 is: $gtin13\n";
+                echo "The corresponding EAN-13 is: $gtin13\n";
             }
         } else {
             echo "The UPC-12 barcode is invalid.\n";
