@@ -236,6 +236,38 @@ class GTIN
         return null;
     }
 
+    /**
+     * Validate and convert the given GTIN to EAN-13. Translate ITF-14 bulk items
+     * to EAN-13 singular item codes.
+     *
+     * @param string|null $originalGtin The original GTIN to validate and convert.
+     * @param bool $stripLeadingZeroes Trim leading 0's from result.
+     * @param \Sfinktah\String\GTIN|null $gtinInfo Optionally return validation information from $originalGtin
+     * @return string|null Returns the validated and formatted EAN-13, or null if invalid.
+     */
+    public static function normalizeAsEan13(?string $originalGtin, bool $stripLeadingZeroes = false, ?GTIN &$gtinInfo = null) : ?string
+    {
+        if (!empty($originalGtin)) {
+            // Identify and validate the GTIN
+            $gtinInfo = self::identifyBarcodeType(ltrim($originalGtin, 0));
+            if (!$gtinInfo) return null;
+            if ($gtinInfo['type'] === 'ITF-14') {
+                $fixedGtin = self::itf14ToEan13($gtinInfo['full_form']);
+            } else if ($gtinInfo['type'] === 'UPC-12') {
+                // As we trim the result, this step doesn't really do anything useful,
+                // though if you want uniform EAN-13 then leave it in.
+                $fixedGtin = self::upc12ToEan13($gtinInfo['full_form']);
+            } else {
+                $fixedGtin = $gtinInfo['full_form'];
+            }
+            if (!self::isValidEAN13($fixedGtin)) {
+                throw new \RuntimeException('Converted to invalid EAN13: ' . $fixedGtin);
+            }
+            return $stripLeadingZeroes ? ltrim($fixedGtin, 0) : $fixedGtin;
+        }
+        return null;
+    }
+
     public static function test() {
         // use Sfinktah\String\GTIN;
 
