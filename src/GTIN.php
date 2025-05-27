@@ -159,6 +159,32 @@ class GTIN
     }
 
     /**
+     * Converts a valid EAN-13 barcode to an ITF-14 barcode.
+     *
+     * ITF-14 barcodes are derived by prepending a "logistics indicator" (default is 0)
+     * to the EAN-13 barcode and recalculating the check digit.
+     *
+     * @param string $ean13 The 13-digit EAN-13 barcode to convert.
+     * @return string|null The 14-digit ITF-14 barcode, or null if the EAN-13 is invalid.
+     */
+    public static function ean13ToItf14(string $ean13): ?string
+    {
+        // Validate the EAN-13 barcode
+        if (!self::isValidEAN13($ean13)) {
+            return null;
+        }
+
+        // Prepend a '0' as the logistics indicator
+        $itf14Prefix = '0' . substr($ean13, 0, 12);
+
+        // Calculate the check digit for the ITF-14
+        $checkDigit = self::calculateITF14CheckDigit($itf14Prefix);
+
+        // Combine the prefix with the check digit to form the ITF-14 barcode
+        return $itf14Prefix . $checkDigit;
+    }
+
+    /**
      * Converts an ITF-14 barcode to an EAN-13 barcode by dropping the leading digit.
      *
      * @param string $itf14 The 14-digit ITF-14 barcode.
@@ -241,11 +267,11 @@ class GTIN
      * to EAN-13 singular item codes.
      *
      * @param string|null $originalGtin The original GTIN to validate and convert.
-     * @param bool $stripLeadingZeroes Trim leading 0's from result.
+     * @param bool $trimLeadingZeroes Trim leading 0's from result.
      * @param \Sfinktah\String\GTIN|null $gtinInfo Optionally return validation information from $originalGtin
      * @return string|null Returns the validated and formatted EAN-13, or null if invalid.
      */
-    public static function normalizeAsEan13(?string $originalGtin, bool $stripLeadingZeroes = false, ?GTIN &$gtinInfo = null) : ?string
+    public static function normalizeAsEan13(?string $originalGtin, bool $trimLeadingZeroes = false, ?GTIN &$gtinInfo = null) : ?string
     {
         if (!empty($originalGtin)) {
             // Identify and validate the GTIN
@@ -257,13 +283,47 @@ class GTIN
                 // As we trim the result, this step doesn't really do anything useful,
                 // though if you want uniform EAN-13 then leave it in.
                 $fixedGtin = self::upc12ToEan13($gtinInfo['full_form']);
-            } else {
+            } else if ($gtinInfo['type'] === 'EAN-13') {
                 $fixedGtin = $gtinInfo['full_form'];
+            } else {
+                throw new \RuntimeException('Invalid GTIN type: ' . $gtinInfo['type']);
             }
             if (!self::isValidEAN13($fixedGtin)) {
                 throw new \RuntimeException('Converted to invalid EAN13: ' . $fixedGtin);
             }
-            return $stripLeadingZeroes ? ltrim($fixedGtin, 0) : $fixedGtin;
+            return $trimLeadingZeroes ? ltrim($fixedGtin, 0) : $fixedGtin;
+        }
+        return null;
+    }
+
+    /**
+     * Normalize and validate the given GTIN to ITF-14. Converts relevant EAN-13 or UPC-12 codes
+     * into ITF-14 (basically just checks they're valid and padds with zeros)
+     *
+     * @param string|null $originalGtin The original GTIN to validate and convert.
+     * @param bool $trimLeadingZeroes Trim leading 0's from result.
+     * @param \Sfinktah\String\GTIN|null $gtinInfo Optionally return validation information from $originalGtin.
+     * @return string|null Returns the validated and formatted ITF-14, or null if invalid.
+     */
+    public static function normalizeAsItf14(?string $originalGtin, bool $trimLeadingZeroes = false, ?GTIN &$gtinInfo = null) : ?string
+    {
+        if (!empty($originalGtin)) {
+            // Identify and validate the GTIN
+            $gtinInfo = self::identifyBarcodeType(ltrim($originalGtin, 0));
+            if (!$gtinInfo) return null;
+            if ($gtinInfo['type'] === 'ITF-14') {
+                $fixedGtin = $gtinInfo['full_form'];
+            } else if ($gtinInfo['type'] === 'UPC-12') {
+                $fixedGtin = self::ean13ToItf14(self::upc12ToEan13($gtinInfo['full_form']));
+            } else if ($gtinInfo['type'] === 'EAN-13') {
+                $fixedGtin = self::ean13ToItf14($gtinInfo['full_form']);
+            } else {
+                throw new \RuntimeException('Invalid GTIN type: ' . $gtinInfo['type']);
+            }
+            if (!self::isValidITF14($fixedGtin)) {
+                throw new \RuntimeException('Converted to invalid EAN13: ' . $fixedGtin);
+            }
+            return $trimLeadingZeroes ? ltrim($fixedGtin, 0) : $fixedGtin;
         }
         return null;
     }
